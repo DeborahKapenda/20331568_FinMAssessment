@@ -1,0 +1,248 @@
+---
+title: "Paged HTML Document"
+author: "Deborah Kapenda"
+date: "November 2021"
+# date: "`r Sys.Date()`"
+bibliography: Tex/ref.bib       # Do not edit: Keep this naming convention and location.
+output:
+  pagedown::html_paged:
+    # template: wp_paged.html
+    # css: ['wp.css', 'wp-fonts.css', 'wp-page.css']
+    css: ["Template/default-fonts-Texevier.css", "Template/default-page-Texevier.css", "Template/default-Texevier.css"]
+    csl: Template/harvard-stellenbosch-university.csl # referencing format used.
+    template: ["Template/paged-Texevier.html"]
+
+    toc: true
+    # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
+    self_contained: TRUE
+abstract: |
+    This is an abstract. Much can be written here. Uncomment this line to go without an abstract.
+    Abstracts have no spaces, but can have bullets.
+
+    Bullets can be created as follows
+
+    + You can add bullets, but do not add colons please.
+
+    + Line breaks are also not permitted.
+
+---
+
+
+Volatility comparison in understanding the concentration and commodity of returns with the Top 40 Indexes. Monthly volatility is stratified by computing the J200 index returns and comparing the return source concentrations for just times of high volatility.
+
+```{r}
+
+# Importing the data
+T40 <- read_rds("data/T40.rds")
+RebDays <- read_rds("data/Rebalance_days.rds")
+```
+
+
+Stratify returns during time of high volatility. 
+
+```{r, force = TRUE}
+
+# ============== Preamble to load packages ========================== #
+if(!require("devtools")){install_github("devtools")}
+library(devtools)
+
+# Install the required packages in elagant approach
+pacman::p_load(
+    "tidyverse",
+    "devtools",
+    "rugarch",
+    "forecast",
+    "tbl2xts",
+    "lubridate",
+    "PerformanceAnalytics",
+    "ggthemes",
+    "robustbase",
+    "tbl2xts",
+    "PerformanceAnalytics",
+    "ggplot2",
+    "tidyverse",
+    "fmxdat",
+    "extrafont",
+    "TTR",
+    "naniar",
+    "readr",
+    "dplyr",
+    "tidyr",
+    "rmsfuns",
+    "naniar",
+    "fEcofin"
+)
+```
+
+
+```{r}
+# Look at the structure of the missing data
+i1 <- naniar::vis_miss(T40,warn_large_data=FALSE)
+i1
+
+```
+Block structure of the missing data suggests that the data is missing not at random (MNAR) meaning that there is some reason that the data is missing. We observe this directly as the data is missing in particular columns. We have to be weary of when the weights `J200` and `J400` have missing data but also when the `Return` is missing.
+
+
+
+
+```{r}
+
+
+T40 <- T40 %>% group_by(date) %>%
+    # replace NA with zero for both Return and J200
+    mutate(Return = coalesce(Return, 0)) %>%
+    mutate(J200 = coalesce(J200, 0)) %>%
+    # Calculate J200return from weight * value
+    mutate(J200return = J200 * Return) %>%
+    # remove the J400, could have also just selected the necessary parts only
+    select(-J400)
+```
+
+
+```{r}
+T40 <-
+    
+    T40 %>% group_by(Tickers) %>%
+    mutate(Top = quantile(J200return, 0.99),
+           Bot = quantile(J200return, 0.01)) %>%
+    
+    mutate(Return = ifelse(J200return > Top, Top,
+                           ifelse(J200return < Bot, Bot, J200return))) %>%
+    ungroup() %>%  mutate(YearMonth = format(date, "%Y%B"))
+
+```
+
+
+```{r}
+# High volatile in the topquantile
+T40SD <- T40  %>%
+    mutate(YearMonth = format(date, "%Y%B")) %>%
+    group_by(YearMonth) %>% summarise(SD = sd(J200return) * sqrt(52)) %>%
+    mutate(TQ = quantile(SD, 0.8),
+           BQ = quantile(SD, 0.2))
+```
+
+
+```{r}
+hivolume <- T40SD %>%
+    filter(SD > TQ) %>%
+    pull(YearMonth)
+
+lowvolume <- T40SD %>%
+    filter(SD < BQ) %>%
+    pull(YearMonth)
+```
+
+```{r}
+# Create generic function to compare performance:
+
+Perf_comparisons <- function(Idxs, YMs, Alias) {
+    YMs <- hivolume
+    
+    Unconditional_SD <-
+        Idxs %>%
+        group_by(Tickers) %>%
+        mutate(Full_SD = sd(Return) * sqrt(252)) %>%
+        filter(YearMonth %in% YMs) %>%
+        summarise(SD = sd(Return) * sqrt(252),
+                  across(.cols = starts_with("Full"), .fns = max)) %>%
+        arrange(desc(SD)) %>% mutate(Period = Alias) %>%
+        group_by(Tickers) %>%
+        mutate(Ratio = SD / Full_SD)
+    
+    Unconditional_SD
+    
+}
+```
+
+
+```{r}
+#monthly high volatility tickers
+
+hi <- Perf_comparisons(T40, YMs = Hi_Vol, Alias = "hivolume")
+
+low <- Perf_comparisons(T40, YMs = Low_Vol, Alias = "lowvolume")
+
+```
+
+PCA Analysis:
+
+```{r}
+naniar::vis_miss(hi,warn_large_data=FALSE)
+```
+The missingness profile shows the block structure of the missingness is from the ratio. After printing it out we see that these are stocks that are not in our group.
+
+```{r}
+#Removing missingness  resulting from the ration
+
+hi <-na.omit(hi)
+
+```
+
+
+Now to center the J200returns mean
+```{r}
+T40_Centered <-
+    T40 %>% group_by(Tickers) %>% 
+    mutate(J200return_centered = J200return - mean(J200return)) %>%
+    ungroup()
+```
+
+
+Here we are only interested in Hi volatility periods as stratified above.
+
+```{r, warnings=FALSE}
+
+pacman::p_load(fEcofin)
+
+# create wide format 
+data_wide <- T40_Centered %>%
+    filter(T40_Centered$Tickers %in% hi$Tickers) %>%
+    mutate(Return = coalesce(Return, 0))  %>%
+    select(date, Tickers, J200return_centered) %>%
+    spread(Tickers,
+           J200return_centered) %>%
+    select(-date)
+
+
+# Checked that all stocks are in the index at some time 
+temp <- data_wide[, colSums(is.na(data_wide)) != nrow(data_wide)]
+
+# rebalancing cause stocks to move in and out of a portfolio
+# these are the missing values that we saw in the vismiss and
+# that we have to delete.
+data_wide <- temp %>%
+    mutate(across(everything(), replace_na, 0))
+
+
+# now the data is full which is necessary for us to perform 
+# principle component analysis
+
+print(vis_miss(data_wide))
+
+# perform PCA analysis
+PCA <- prcomp(data_wide)
+
+```
+PCA use the covariance matrix and requires a full matrix with no    `NaN` using this, and the knowledge that when a stock is weighted at zero in a portfolio's weighting, it also has zero returns for that portfolio so we can just replace the  `NaN` with zero.
+
+```{r}
+# Plot the skree plot
+i4 <- plot(PCA, type = "l")
+print(i4)
+```
+The elbow is seen in the PCA scree plot as intended. It would terminate at two, implying that the first and second eigenvalues and eigenvectors account for the bulk of variance.
+
+We can see this below that the majority of the proportion of variance is explained by the first and second PCA, under `PC1` and `PC2`. PCA is simply a dimension reduction of sorts, we want to see in lower dimensions, how can we explain majority of the variation, hence the norm is to cut off at the elbow where the proportion of variation explained starts to deminish. 
+
+```{r}
+i2 <- summary(pca)
+print(i2)
+```
+
+```{r}
+    print(i2$importance)
+    print(0.467120000 + 0.237460000)
+```
+The first 2 components explain 0.70458 of the variation.

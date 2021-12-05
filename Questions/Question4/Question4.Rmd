@@ -1,0 +1,246 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r, force = TRUE}
+# ============== Preamble to load packages ========================== #
+if(!require("devtools")){install_github("devtools")}
+library(devtools)
+
+# Install pacman to handle installations
+if(!require("trinker/pacman")){install_github("trinker/pacman")}
+
+# Install the required packages in elagant approach
+pacman::p_load(
+    "tidyverse",
+    "devtools",
+    "rugarch",
+    "forecast",
+    "tbl2xts",
+    "lubridate",
+    "PerformanceAnalytics",
+    "ggthemes",
+    "robustbase",
+    "tbl2xts",
+    "PerformanceAnalytics",
+    "ggplot2",
+    "tidyverse",
+    "fmxdat",
+    "extrafont",
+    "TTR",
+    "naniar",
+    "readr",
+    "dplyr",
+    "tidyr",
+    "MTS", 
+    "robustbase",
+    "rportfolios",
+    "zoo",
+    "dLagM"
+)
+```
+
+
+```{r}
+
+#Import the data
+cncy <- read_rds("data/currencies.rds") 
+cncy_Carry <- read_rds("data/cncy_Carry.rds") 
+cncy_value <- read_rds("data/cncy_value.rds")
+cncyIV <- read_rds("data/cncyIV.rds")
+bbdxy <- read_rds("data/bbdxy.rds")
+```
+
+
+
+```{r}
+
+cncy %>%
+    # take last 20 years 
+    filter(date >= "2001-10-31" & date <= "2021-10-31") %>%
+    # format for BRICS countries 
+    filter(
+        Name %in% c(
+            "Brazil_Cncy",
+            "Russia_Cncy",
+            "SouthAfrica_Cncy",
+            "China_Cncy",
+            "India_Cncy"
+        )
+    ) %>%
+    # plot 
+    ggplot() +
+    aes(x = date, y = Price, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Time (days)",
+        y = "Price",
+        title = "Time plot of BRICS currencies",
+        caption = "BRICS currency",
+        color = "BRICS"
+    ) +
+    theme_bw() +
+    theme(legend.position = "bottom")
+```
+
+```{r}
+cncy %>%
+    # filter last 20 years
+    filter(date >= "2001-10-31" & date <= "2021-10-31") %>%
+    # BRICS
+    filter(
+        Name %in% c(
+            "Brazil_Cncy",
+            "Russia_Cncy",
+            "SouthAfrica_Cncy",
+            "China_Cncy",
+            "India_Cncy"
+        )
+    ) %>% group_by(Name) %>% summary()
+```
+
+```{r}
+
+
+cncyIV %>%
+    filter(date >= "2000-02-19" & date <= "2021-10-29") %>%
+    filter(
+        Name %in% c(
+            "Brazil_IV",
+            "China_IV",
+            "EU_IV",
+            "India_IV",
+            "SouthAfrica_IV",
+            "Russia_IV"
+        )
+    ) %>%
+    ggplot() +
+    aes(x = date, y = Price, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Time",
+        y = "Volatility index",
+        subtitle = "Volatility comparson",
+        caption = "BRICS and EU volatility ",
+        color = "Country"
+    ) +
+    theme_bw()
+
+```
+```{r}
+temp <- cncyIV %>%
+ filter(date >= "2000-02-19" & date <= "2021-10-29") %>%
+ filter(Name %in% c("Brazil_IV", "China_IV", 
+"EU_IV", "India_IV", "SouthAfrica_IV", "Russia_IV")) 
+
+ggplot(temp) +
+  aes(x = Name, y = Price, fill = Name) +
+  geom_boxplot(shape = "circle") +
+  scale_fill_hue(direction = 1) +
+  labs(
+    x = "Country volatility",
+    y = "Volatility index",
+    caption = "Volatility over the past 20 years have been high in SA",
+    fill = "Country"
+  ) +
+  theme_bw()
+```
+The diagram above with the statement that South Africa has a higher volatility over the past 20 years. This is evident as the volatility index (VI) has a distribution relatively higher than most BRICS countries, except Brazil perhaps. We also see that many periods had outliers, where the VI  has spiked upwards.
+
+
+
+```{r}
+# G10
+glimpse(cncy_Carry)
+```
+
+
+```{r}
+
+# subset south african currency
+ZAR <-
+    cncy %>% 
+    filter(Name == "SouthAfrica_Cncy") %>%
+    select(date, Price)
+
+# rename columns in order to plot
+colnames(ZAR)[2] <- "SouthAfrica_Cncy"
+colnames(cncy_Carry)[3] <- "DBHVG10U"
+
+# inner join by date
+temp <- inner_join(cncy_Carry, ZAR, by = "date")
+
+
+# Plot a currency comparison of the G10 and ZA
+p1 <-
+    ggplot(data = temp, aes(x = date)) +
+    geom_line(aes(y = DBHVG10U, colour = "DBHVG10U")) +
+    geom_line(aes(y = SouthAfrica_Cncy, colour = "SouthAfrica_Cncy")) +
+    scale_colour_manual(
+        "",
+        breaks = c("SouthAfrica_Cncy", "DBHVG10U"),
+        values = c("SouthAfrica_Cncy" = "green", "DBHVG10U" =
+                       "red")
+    ) +
+    xlab(" ") +
+    scale_y_continuous("Currency ") +
+    labs(title = "Currency return comparison: G10 vs ZA",
+         subtitle = "Currency G10 vs ZA normal scale") +
+  theme_bw()
+
+p1
+
+```
+It is difficult to compare the SA and the G10 in `DBHVG10U` and South African currencies as they are on different scales. We can try to scale both measures to ensure that a fair comparison of their synchrony takes place.
+
+
+```{r}
+
+# 
+temp <- temp %>%
+    select(-Name)
+
+p2 <-
+ggplot(data = temp, aes(x = date)) +
+  geom_line(aes(y = scale(DBHVG10U), colour = "DBHVG10U")) +
+  geom_line(aes(y = scale(SouthAfrica_Cncy), colour = "SouthAfrica_Cncy")) +
+  scale_colour_manual("", 
+                      breaks = c("SouthAfrica_Cncy", "DBHVG10U"),
+                      values = c("SouthAfrica_Cncy"="orange", "DBHVG10U"="blue")) +
+  xlab("Time") +
+  scale_y_continuous("Scaled currency") + 
+  labs(title="Currency return comparison: G10 vs ZA",
+       subtitle = "Scaled SouthAfrica_Cncy and DBHVG10U",
+       caption = "Possible inverse relationship present.") +
+  theme_bw()
+
+p2
+
+```
+
+We observe from the scaled currencies a possible inverse relationship. In order to truly understand the synchrony of the currencies, we could use the correlation. This is the standard approach to consider the synchrony of two variables, but since this is also a time series problem, the time dimension is a factor in determining the correct approach. A rolling window has the added benefit of allowing you to include the time dimension but without eliminating the bias-variance trade-off in the window size. For more on this see work by Tsay in his 2013 book on multivariate time series.
+
+```{r, warning=FALSE}
+
+if(!require("dLagM")){install_github("dLagM")}
+
+temp <- temp %>% select(date, DBHVG10U, SouthAfrica_Cncy)
+
+prod.ts <- ts(temp$DBHVG10U, start = 2000)
+CO2.ts <- ts(temp$SouthAfrica_Cncy, start = 2000)
+rolCorPlot(
+    x = prod.ts,
+    y = CO2.ts ,
+    width = c(20),
+    level = 0.95
+)
+```
+An analysis of the rolling correlation with a window showing the confidence interval, considering a 20 day window show that the correlation is generally slightly negative. Further supporting the argument that there is an inverse relationship, i.e. if ZA goes up, G10 goes down in general.
+

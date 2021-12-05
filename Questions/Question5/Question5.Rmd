@@ -1,0 +1,230 @@
+---
+title: "Paged HTML Document"
+author: "Deborah Kapenda"
+date: "November 2021"
+# date: "`r Sys.Date()`"
+bibliography: Tex/ref.bib       # Do not edit: Keep this naming convention and location.
+output:
+  pagedown::html_paged:
+    # template: wp_paged.html
+    # css: ['wp.css', 'wp-fonts.css', 'wp-page.css']
+    css: ["Template/default-fonts-Texevier.css", "Template/default-page-Texevier.css", "Template/default-Texevier.css"]
+    csl: Template/harvard-stellenbosch-university.csl # referencing format used.
+    template: ["Template/paged-Texevier.html"]
+
+    toc: true
+    # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
+    self_contained: TRUE
+abstract: |
+    This is an abstract. Much can be written here. Uncomment this line to go without an abstract.
+    Abstracts have no spaces, but can have bullets.
+
+    Bullets can be created as follows
+
+    + You can add bullets, but do not add colons please.
+
+    + Line breaks are also not permitted.
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse)
+```
+
+\newpage
+
+# Introduction {-}
+
+
+The MSCI total return indexes 
+- This section looks to argue the return profiles of different asset classes over the past decade to find out if they have increased in their covergence. 
+
+#Load the packages neccessary 
+
+```{r, force = TRUE}
+# ============== Preamble to load packages ========================== #
+if(!require("devtools")){install_github("devtools")}
+library(devtools)
+
+# Install pacman to handle installations
+if(!require("trinker/pacman")){install_github("trinker/pacman")}
+
+# Install the required packages in elagant approach
+pacman::p_load(
+    "tidyverse",
+    "devtools",
+    "rugarch",
+    "forecast",
+    "tbl2xts",
+    "lubridate",
+    "PerformanceAnalytics",
+    "ggthemes",
+    "robustbase",
+    "tbl2xts",
+    "PerformanceAnalytics",
+    "ggplot2",
+    "tidyverse",
+    "fmxdat",
+    "extrafont",
+    "TTR",
+    "naniar",
+    "readr",
+    "dplyr",
+    "tidyr",
+    "rugarch",
+    "rmgarch",
+    "forecast",
+    "TTR"
+)
+```
+
+
+
+# Import the data
+```{r}
+msci <- read_rds("data/msci.rds")
+bonds <- read_rds("data/bonds_10y.rds")
+comms <- read_rds("data/comms.rds")
+```
+
+
+#How does the data look like?
+
+```{r}
+str(msci)
+class(msci)
+head(msci)
+colnames(msci)
+
+uniquemsci <- unique(msci$Name) 
+uniquemsci
+
+uniquebonds <- unique(bonds$Name) 
+uniquebonds
+
+uniquecomms <- unique(comms$Name) 
+uniquecomms
+
+```
+
+
+To show returns that are converging - we conduct the MSCI, total bond and commodity return profiles. 
+
+```{r, include=FALSE}
+
+a1 <-  ggplot(msci) +
+    aes(x = date, y = Price, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Returns",
+        title = "MCSI Index Plot",
+        caption = "MCSI indexes plot of returns"
+    ) +
+    theme_bw()
+```
+```{r}
+a1
+```
+
+
+The plot shows that there are a variety of indexes in the dataset. It may be necessary to only select those variables that are country or region specific to create a reasonable comparisons between returns across asset classes.
+
+```{r, include=FALSE}
+
+a2 <- 
+ggplot(comms) +
+    aes(x = date, y = Price, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Return",
+        title = "Commodities Returns",
+        subtitle = "Showing commodity prices"
+    ) +
+    theme_bw()
+```
+
+```{r}
+print(a2)
+```
+ 
+
+```{r, include=FALSE}
+
+a3 <- 
+bonds_10y %>% filter(Name == "US_10Yr") %>% ggplot() +
+    aes(x = date, y = Bond_10Yr, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Yields",
+        title = "10 Year bond Yields",
+        subtitle = "Showing all the 10 Year",
+        caption = "Showing all the data in the data set"
+    ) +
+    theme_bw()
+```
+```{r}
+print(a3)
+```
+
+
+```{r, include=FALSE}
+# China msci return 
+
+USreturn <-
+    msci %>% filter(Name == "MSCI_USA") %>% arrange(date) %>% mutate(US_Msci_return = Price /
+                                                                         lag(Price) - 1)
+
+
+a4 <-
+    USreturn %>% ggplot() +
+    aes(x = date, y = US_Msci_return, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Return",
+        title = "MSCI USA Return",
+        subtitle = "Showing all the 10 Year",
+        caption = "Showing all the data in the data set"
+    ) +
+    theme_bw()
+```
+
+```{r}
+print(a4)
+```
+
+
+
+```{r, include=FALSE}
+#bcom returns
+
+Gold_ret <-
+    comms %>% filter(Name == "Gold") %>% arrange(date) %>% mutate(gold_ret = Price /
+                                                                      lag(Price) - 1)
+
+
+Gold_ret  %>% ggplot() +
+    aes(x = date, y = gold_ret, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Price",
+        title = "Gold Returns",
+        subtitle = "All the 10 Year"
+    ) +
+    theme_bw()
+```
+
+
+
+
+

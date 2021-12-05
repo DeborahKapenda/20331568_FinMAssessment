@@ -1,0 +1,285 @@
+---
+title: "Question1"
+author: "Deborah Kapenda"
+date: "04/12/2021"
+output: html_document
+---
+
+c
+
+##  Data question 1{-}
+
+```{r}
+SA_bonds <-
+    read_rds("data/SA_Bonds.rds") # SA bond 2 year, 3 month and 10 year
+
+BE_Infl <- read_rds("data/BE_Infl.rds")
+bonds_2y <- read_rds("data/bonds_2y.rds") # International comparison
+bonds_10y <- read_rds("data/bonds_10y.rds") # Internarion
+usdzar <- read_rds("data/usdzar.rds") # US ZA currency
+ZA_Infl <- read_rds("data/ZA_Infl.rds") # Inflation in South Africa (High inflation rate, leads to bond holders requring higher  returns off bonds and thus )
+IV <- read_rds("data/IV.rds") # Volitility index
+```
+
+For Question 1, we are given seven distinct datasets. The primary data set is 'SA bonds,' which has three distinct features that indicate South African bond yields. These can be thought of as sentiment towards South African debt, in short term (3-month bond), medium term (2-year bond) and long term (10-year bond).
+
+```{r }
+# ================ SA_bonds ==================== #
+
+dim(SA_bonds)
+colnames(SA_bonds)
+
+# transformation: reshape to plot
+
+xts.SA_bonds <-
+    SA_bonds %>%
+    select("date", "SA_3M", "ZA_10Yr", "ZA_2Yr") %>%
+    tbl_xts()
+
+# Look at the data: data is daily
+head(SA_bonds, 3)
+tail(SA_bonds, 3)
+```
+
+# EDA of SA bonds
+
+```{r}
+
+p1 <-      ggplot(SA_bonds, aes(x=date)) +
+    geom_line( aes(y = SA_3M), size = 0.5, colour = "red") +
+    geom_line(aes(y = ZA_2Yr) ,size = 0.5, colour = "green") +
+    geom_line(aes( y = ZA_10Yr) ,size = 0.5, colour = "blue") +
+    labs(
+        x = "Year",
+        y = "Yields",
+        subtitle = "South African bonds"
+    ) 
+
+
+print(p1)
+
+```
+```{r}
+my.cols <- heat.colors(3, alpha=1)
+my.names <- c("SA_3M", "ZA_10Yr", "ZA_2Yr" )
+names(my.cols) <- my.names
+
+##Then rearrange your data frame
+library(reshape2)
+dd = melt(SA_bonds, id=c("date"))
+
+#p2 <-  ggplot(dd) + geom_line(aes(x=date, y=value, colour=variable))
+
+p2 <-      ggplot(dd) +
+    geom_line( aes(y = SA_3M), size = 0.5, colour = "red") +
+    geom_line(aes(y = ZA_2Yr) ,size = 0.5, colour = "green") +
+    geom_line(aes( y = ZA_10Yr) ,size = 0.5, colour = "blue") +
+    labs(
+        x = "Year",
+        y = "Yields",
+        subtitle = "South African bonds"
+    ) + scale_colour_manual(values=c("red","green","blue"))
+
+```
+
+```{r}
+p3 <-
+ggplot(data = SA_bonds, aes(x = date)) +
+  geom_line(aes(y =ZA_10Yr-SA_3M, colour = "SA_3M spread")) +
+  geom_line(aes(y =ZA_10Yr-ZA_2Yr, colour = "ZA_2Yr spread")) +
+  scale_colour_manual("", 
+                      breaks = c("SA_3M spread", "ZA_2Yr spread"),
+                      values = c("SA_3M spread"="green", "ZA_2Yr spread"="red")) +
+  xlab(" ") +
+  scale_y_continuous("Spreads") + 
+  labs(title="Spreads",
+       subtitle = "Spreads relative to ZA_10Yr")
+
+p3
+```
+
+
+```{r}
+# Both are daily but different dimensions and dates
+print(dim(bonds_2y) == dim(SA_bonds))
+```
+```{r}
+# 
+p5 <- 
+bonds_2y %>%
+ filter(date >= "1999-09-09" & date <= "2021-10-29") %>%
+ filter(Name %in% c("Brazil_2yr", 
+"CHINA_2yr", "EURO_2yr", "Nigeria_2yr", "US_2yr", "Russia_2yr")) %>%
+ ggplot() +
+  aes(x = date, y = Bond_2Yr, colour = Name) +
+  geom_line(size = 0.5) +
+  scale_color_hue(direction = 1) +
+  labs(
+        x = "Year",
+        y = "Bond 2_Yields",
+        subtitle = "2 year bond yields by country") +
+  theme_minimal()+
+ theme(legend.position = "bottom")
+
+print(p5)
+```
+
+```{r}
+
+
+
+ggplot(data = SA_bonds, aes(x = date)) +
+  geom_line(aes(y =ZA_10Yr-SA_3M, colour = "SA_3M spread")) +
+  geom_line(aes(y =ZA_10Yr-ZA_2Yr, colour = "ZA_2Yr spread")) +
+  scale_colour_manual("", 
+                      breaks = c("SA_3M spread", "ZA_2Yr spread"),
+                      values = c("SA_3M spread"="green", "ZA_2Yr spread"="red")) +
+  xlab(" ") +
+  scale_y_continuous("Spreads") + 
+  labs(title="Spreads",
+       subtitle = "Spreads relative to ZA_10Yr")
+
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+p4 <- 
+bonds_10y %>%
+ filter(date >= "2000-06-07" & date <= "2021-10-29") %>%
+ filter(Name %in% c("Brazil_10Yr", 
+"CHINA_10Yr", "Nigeria_10Yr", "Russia_10Yr", "US_10Yr")) %>%
+ ggplot() +
+ aes(x = date, y = Bond_10Yr, colour = Name) +
+ geom_line(size = 0.5) +
+ scale_color_hue(direction = 1) +
+ labs(x = "Time (daily)", y = "10 Year Yield", subtitle = "10 Year bond", caption = "BRICS, Nigeria and USA", 
+ color = "Countries") +
+ theme_minimal()
+p4
+```
+
+
+
+```{r}
+bonds_10y %>%
+ filter(date >= "2005-06-08" & date <= "2021-10-29") %>%
+ filter(Name %in% c("Brazil_10Yr", 
+"CHINA_10Yr", "Nigeria_10Yr", "Russia_10Yr", "US_10Yr")) %>%
+ ggplot() +
+  aes(x = date, y = Bond_10Yr, colour = Name) +
+  geom_line(size = 0.5) +
+  scale_color_hue(direction = 1) +
+  labs(
+    x = "Time (daily)",
+    y = "10 Year Yield",
+    subtitle = "10 Year bond",
+    caption = "BRICS,
+    Nigeria and USA",
+    color = "Countries"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+# Compare the spreads for the US with the spread of South Africa
+
+# index 2 year bond
+temp1 =  bonds_2y[bonds_2y$Name == "US_2yr",]
+
+temp2 = bonds_10y[bonds_10y$Name == "US_10Yr",]
+
+# same dimensions
+dim(temp1) == dim(temp2)
+
+# Calculate US spread
+temp1$US_Spread = temp2$Bond_10Yr -  temp1$Bond_2Yr
+
+# Calculate ZA spread
+SA_bonds$ZA_spread = SA_bonds$ZA_10Yr - SA_bonds$ZA_2Yr
+
+# False
+#min(temp$date) == min(SA_bonds$date)
+
+# True
+#min(temp$date) < min(SA_bonds$date)
+
+# true
+#max(temp$date) == max(SA_bonds$date)
+
+# index temp to SA_bonds minimum date 
+tempsub = temp1[temp1$date >= min(SA_bonds$date),]
+
+
+compareUSZA = merge(SA_bonds, tempsub)
+
+
+```
+
+```{r}
+p6 <- ggplot(data=compareUSZA, aes(x = date)) +
+  geom_line(aes(y =ZA_spread, colour = "SA_2Y spread")) +
+  geom_line(aes(y =US_Spread, colour = "US_2Yr spread")) +
+  scale_colour_manual("", 
+                      breaks = c("SA_2Y spread", "US_2Yr spread"),
+                      values = c("SA_2Y spread"="green", "US_2Yr spread"="red")) +
+  xlab(" ") +
+  scale_y_continuous("Spreads") + 
+  labs(title="Spreads",
+       x = "Date",
+       subtitle = "Spreads relative to ZA_10Yr")
+
+p6
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# Let's look at the rolling correlation between values
+temp <- compareUSZA %>%
+    select(date, ZA_spread, US_Spread)
+
+
+# rolling correlation
+window_size = 120 # 120 day rolling correlation
+cor1 <- data.frame(rollapply( temp,width=window_size, function(x) {cor(as.numeric(x[,2]), as.numeric(x[,3]))}, by.column=FALSE) )
+
+plot(cor1)
+
+```
+
+Other considerations,
+
+- VIX 
+
+```{r}
+
+
+p8 <- IV %>%
+ filter(date >= "2019-09-12" & date <= "2021-10-29") %>%
+ ggplot() +
+ aes(x = date, y = Price, colour = Name) +
+ geom_line(size = 0.5) +
+ scale_color_hue(direction = 1) +
+ labs(x = "Time (daily)", y = "Volatility index", subtitle = "Volatility index", caption = "VIX represents volatility index", 
+ color = "Index") +
+ theme_minimal() +
+ theme(legend.position = "bottom")
+
+print(p8)
+
+
+```
+

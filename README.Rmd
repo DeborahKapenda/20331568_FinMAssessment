@@ -1,0 +1,1194 @@
+---
+title: "README"
+author: '20331568'
+date: "12/5/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r, force = TRUE}
+
+# ============== Preamble to load packages ========================== #
+if(!require("devtools")){install_github("devtools")}
+library(devtools)
+
+# Install the required packages in elagant approach
+pacman::p_load(
+    "tidyverse",
+    "devtools",
+    "rugarch",
+    "forecast",
+    "tbl2xts",
+    "lubridate",
+    "PerformanceAnalytics",
+    "ggthemes",
+    "robustbase",
+    "tbl2xts",
+    "PerformanceAnalytics",
+    "ggplot2",
+    "tidyverse",
+    "fmxdat",
+    "extrafont",
+    "TTR",
+    "naniar",
+    "readr",
+    "dplyr",
+    "tidyr",
+    "rmsfuns",
+    "naniar",
+    "fEcofin"
+)
+```
+
+#Question 1
+
+##  Data question 1{-}
+
+```{r}
+SA_bonds <-
+    read_rds("data/SA_Bonds.rds") # SA bond 2 year, 3 month and 10 year
+
+BE_Infl <- read_rds("data/BE_Infl.rds")
+bonds_2y <- read_rds("data/bonds_2y.rds") # International comparison
+bonds_10y <- read_rds("data/bonds_10y.rds") # Internarion
+usdzar <- read_rds("data/usdzar.rds") # US ZA currency
+ZA_Infl <- read_rds("data/ZA_Infl.rds") # Inflation in South Africa (High inflation rate, leads to bond holders requring higher  returns off bonds and thus )
+IV <- read_rds("data/IV.rds") # Volitility index
+```
+
+For Question 1, we are given seven distinct datasets. The primary data set is 'SA bonds,' which has three distinct features that indicate South African bond yields. These can be thought of as sentiment towards South African debt, in short term (3-month bond), medium term (2-year bond) and long term (10-year bond).
+
+```{r }
+# ================ SA_bonds ==================== #
+
+dim(SA_bonds)
+colnames(SA_bonds)
+
+# transformation: reshape to plot
+
+xts.SA_bonds <-
+    SA_bonds %>%
+    select("date", "SA_3M", "ZA_10Yr", "ZA_2Yr") %>%
+    tbl_xts()
+
+# Look at the data: data is daily
+head(SA_bonds, 3)
+tail(SA_bonds, 3)
+```
+
+# EDA of SA bonds
+
+```{r}
+
+p1 <-      ggplot(SA_bonds, aes(x=date)) +
+    geom_line( aes(y = SA_3M), size = 0.5, colour = "red") +
+    geom_line(aes(y = ZA_2Yr) ,size = 0.5, colour = "green") +
+    geom_line(aes( y = ZA_10Yr) ,size = 0.5, colour = "blue") +
+    labs(
+        x = "Year",
+        y = "Yields",
+        subtitle = "South African bonds"
+    ) 
+
+
+print(p1)
+
+```
+```{r}
+my.cols <- heat.colors(3, alpha=1)
+my.names <- c("SA_3M", "ZA_10Yr", "ZA_2Yr" )
+names(my.cols) <- my.names
+
+##Then rearrange your data frame
+library(reshape2)
+dd = melt(SA_bonds, id=c("date"))
+
+#p2 <-  ggplot(dd) + geom_line(aes(x=date, y=value, colour=variable))
+
+p2 <-      ggplot(dd) +
+    geom_line( aes(y = SA_3M), size = 0.5, colour = "red") +
+    geom_line(aes(y = ZA_2Yr) ,size = 0.5, colour = "green") +
+    geom_line(aes( y = ZA_10Yr) ,size = 0.5, colour = "blue") +
+    labs(
+        x = "Year",
+        y = "Yields",
+        subtitle = "South African bonds"
+    ) + scale_colour_manual(values=c("red","green","blue"))
+
+```
+
+```{r}
+p3 <-
+ggplot(data = SA_bonds, aes(x = date)) +
+  geom_line(aes(y =ZA_10Yr-SA_3M, colour = "SA_3M spread")) +
+  geom_line(aes(y =ZA_10Yr-ZA_2Yr, colour = "ZA_2Yr spread")) +
+  scale_colour_manual("", 
+                      breaks = c("SA_3M spread", "ZA_2Yr spread"),
+                      values = c("SA_3M spread"="green", "ZA_2Yr spread"="red")) +
+  xlab(" ") +
+  scale_y_continuous("Spreads") + 
+  labs(title="Spreads",
+       subtitle = "Spreads relative to ZA_10Yr")
+
+p3
+```
+
+
+```{r}
+# Both are daily but different dimensions and dates
+print(dim(bonds_2y) == dim(SA_bonds))
+```
+```{r}
+# 
+p5 <- 
+bonds_2y %>%
+ filter(date >= "1999-09-09" & date <= "2021-10-29") %>%
+ filter(Name %in% c("Brazil_2yr", 
+"CHINA_2yr", "EURO_2yr", "Nigeria_2yr", "US_2yr", "Russia_2yr")) %>%
+ ggplot() +
+  aes(x = date, y = Bond_2Yr, colour = Name) +
+  geom_line(size = 0.5) +
+  scale_color_hue(direction = 1) +
+  labs(
+        x = "Year",
+        y = "Bond 2_Yields",
+        subtitle = "2 year bond yields by country") +
+  theme_minimal()+
+ theme(legend.position = "bottom")
+
+print(p5)
+```
+
+```{r}
+
+
+
+ggplot(data = SA_bonds, aes(x = date)) +
+  geom_line(aes(y =ZA_10Yr-SA_3M, colour = "SA_3M spread")) +
+  geom_line(aes(y =ZA_10Yr-ZA_2Yr, colour = "ZA_2Yr spread")) +
+  scale_colour_manual("", 
+                      breaks = c("SA_3M spread", "ZA_2Yr spread"),
+                      values = c("SA_3M spread"="green", "ZA_2Yr spread"="red")) +
+  xlab(" ") +
+  scale_y_continuous("Spreads") + 
+  labs(title="Spreads",
+       subtitle = "Spreads relative to ZA_10Yr")
+
+```
+
+```{r}
+
+p4 <- 
+bonds_10y %>%
+ filter(date >= "2000-06-07" & date <= "2021-10-29") %>%
+ filter(Name %in% c("Brazil_10Yr", 
+"CHINA_10Yr", "Nigeria_10Yr", "Russia_10Yr", "US_10Yr")) %>%
+ ggplot() +
+ aes(x = date, y = Bond_10Yr, colour = Name) +
+ geom_line(size = 0.5) +
+ scale_color_hue(direction = 1) +
+ labs(x = "Time (daily)", y = "10 Year Yield", subtitle = "10 Year bond", caption = "BRICS, Nigeria and USA", 
+ color = "Countries") +
+ theme_minimal()
+p4
+```
+
+
+
+```{r}
+bonds_10y %>%
+ filter(date >= "2005-06-08" & date <= "2021-10-29") %>%
+ filter(Name %in% c("Brazil_10Yr", 
+"CHINA_10Yr", "Nigeria_10Yr", "Russia_10Yr", "US_10Yr")) %>%
+ ggplot() +
+  aes(x = date, y = Bond_10Yr, colour = Name) +
+  geom_line(size = 0.5) +
+  scale_color_hue(direction = 1) +
+  labs(
+    x = "Time (daily)",
+    y = "10 Year Yield",
+    subtitle = "10 Year bond",
+    caption = "BRICS,
+    Nigeria and USA",
+    color = "Countries"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+# Compare the spreads for the US with the spread of South Africa
+
+# index 2 year bond
+temp1 =  bonds_2y[bonds_2y$Name == "US_2yr",]
+
+temp2 = bonds_10y[bonds_10y$Name == "US_10Yr",]
+
+# same dimensions
+dim(temp1) == dim(temp2)
+
+# Calculate US spread
+temp1$US_Spread = temp2$Bond_10Yr -  temp1$Bond_2Yr
+
+# Calculate ZA spread
+SA_bonds$ZA_spread = SA_bonds$ZA_10Yr - SA_bonds$ZA_2Yr
+
+# False
+#min(temp$date) == min(SA_bonds$date)
+
+# True
+#min(temp$date) < min(SA_bonds$date)
+
+# true
+#max(temp$date) == max(SA_bonds$date)
+
+# index temp to SA_bonds minimum date 
+tempsub = temp1[temp1$date >= min(SA_bonds$date),]
+
+
+compareUSZA = merge(SA_bonds, tempsub)
+
+
+```
+
+```{r}
+p6 <- ggplot(data=compareUSZA, aes(x = date)) +
+  geom_line(aes(y =ZA_spread, colour = "SA_2Y spread")) +
+  geom_line(aes(y =US_Spread, colour = "US_2Yr spread")) +
+  scale_colour_manual("", 
+                      breaks = c("SA_2Y spread", "US_2Yr spread"),
+                      values = c("SA_2Y spread"="green", "US_2Yr spread"="red")) +
+  xlab(" ") +
+  scale_y_continuous("Spreads") + 
+  labs(title="Spreads",
+       x = "Date",
+       subtitle = "Spreads relative to ZA_10Yr")
+
+p6
+```
+
+```{r}
+# Let's look at the rolling correlation between values
+temp <- compareUSZA %>%
+    select(date, ZA_spread, US_Spread)
+
+
+# rolling correlation
+window_size = 120 # 120 day rolling correlation
+cor1 <- data.frame(rollapply( temp,width=window_size, function(x) {cor(as.numeric(x[,2]), as.numeric(x[,3]))}, by.column=FALSE) )
+
+plot(cor1)
+
+```
+
+Other considerations,
+
+- VIX 
+
+```{r}
+
+
+p8 <- IV %>%
+ filter(date >= "2019-09-12" & date <= "2021-10-29") %>%
+ ggplot() +
+ aes(x = date, y = Price, colour = Name) +
+ geom_line(size = 0.5) +
+ scale_color_hue(direction = 1) +
+ labs(x = "Time (daily)", y = "Volatility index", subtitle = "Volatility index", caption = "VIX represents volatility index", 
+ color = "Index") +
+ theme_minimal() +
+ theme(legend.position = "bottom")
+
+print(p8)
+
+
+```
+
+#Question 2
+
+
+ 
+
+
+
+Load the data 
+```{r}
+T40 <- read_rds("data/T40.rds")
+RebDays <- read_rds("data/Rebalance_days.rds")
+```
+
+Glimpse of the data 
+```{r}
+#Glimpse of the data 
+print(dim(T40))
+print(dim(RebDays))
+```
+
+
+```{r}
+# Missing data is present in the dataset
+g1 <- vis_miss(T40,warn_large_data=FALSE)
+g1
+```
+
+
+```{r}
+glimpse(T40)
+```
+```{r}
+glimpse(RebDays)
+```
+
+
+```{r}
+# Look at unique stocks per day
+temp <- T40 %>% group_by(date) %>% tally()
+unique(temp$n)
+```
+
+```{r}
+# test for J200
+temp <- T40 %>% group_by(date) %>% summarise(sumval = sum(J200))
+unique(temp$sumval)
+```
+```{r}
+# test for J400
+temp <- T40 %>% group_by(date) %>% summarise(sumval = sum(J400))
+unique(temp$sumval)
+
+```
+
+We know that the return of the portfolio can be calculated as
+$$
+r_{\text{portfilio}}(t) = \sum_{i} w_{i}(t) \times r_{i}(t),
+$$
+where $w_{i}(t)$ is the weight of stock $i$ and $r_{i}(t)$ is the return of stock $i$ for all $i$ stocks.
+```{r, warning=FALSE}
+T40<- T40 %>% group_by(date) %>% 
+              mutate(J200return = J200 * Return,
+              J400return = J400 * Return
+                                  )
+
+# possibly log returns since all are greater than 0
+sum(T40$J400return < 0)
+sum(T40$J200return < 0)
+```
+
+```{r, warning=FALSE}
+
+# Can't have a negative weight in a portfolio
+g2 <- T40 %>%
+ ggplot() +
+ aes(x = J400) +
+ geom_histogram(bins = 100L, fill = "grey") +
+ labs(x = "J400 returns", 
+ y = "Freq", title = "Histogram of J400 weigths", subtitle = "J400 weights follow log-normal distribution as expected")  +
+ theme_minimal()
+
+print(g2)
+```
+
+
+```{r, warning=FALSE}
+g3 <- T40 %>%
+ ggplot() +
+ aes(x = J400return) +
+ geom_histogram(bins = 200L, fill = "grey") +
+ labs(x = "J400 returns", 
+ y = "Freq", title = "Histogram of J400 returns", subtitle = "J400 returns follow log-normal distribution") +
+ theme_minimal()
+print(g3)
+```
+
+
+```{r, warning=FALSE}
+
+T40 %>%
+ filter(Return >= -0.74 & Return <= 0.14) %>%
+ ggplot() +
+ aes(x = J200) +
+ geom_histogram(bins = 100L, fill = "blue") +
+ labs(x = "J200 returns", 
+ y = "Freq", title = "Histogram of J200 returns", subtitle = "J200 returns follow log-normal distribution") +
+ theme_minimal()
+```
+```{r, warning=FALSE}
+
+g4 <- T40 %>%
+ ggplot() +
+ aes(x = J200return) +
+ geom_histogram(bins = 100L, fill = "blue") +
+ labs(x = "J200 returns", 
+ y = "Freq", title = "Histogram of J200 returns", subtitle = "J200 returns follow normal distribution") +
+ theme_minimal()
+g4
+```
+
+
+
+```{r}
+g5 <- T40 %>%
+ filter(date >= "2021-05-23" & date <= "2021-10-29") %>%
+ ggplot() +
+  aes(x = date, y = Return, colour = Sector) +
+  geom_line(size = 0.5) +
+  scale_color_hue(direction = 1) +
+  theme_minimal()
+
+print(g5)
+```
+
+```{r}
+library(ggplot2)
+
+g6 <- ggplot(T40) +
+ aes(x = date, y = Return, colour = Sector) +
+ geom_line(size = 0.5) +
+ scale_color_hue(direction = 1) +
+ labs(x = "Time", y = "Return", subtitle = "Returns of the T40 by sector", caption = "The resource sector exhibits significant fluctuations") +
+ theme_minimal() +
+ facet_wrap(vars(Sector))
+print(g6)
+```
+
+```{r}
+g7 <-
+    T40 %>%
+    filter(date >= "2020-06-11" & date <= "2021-10-29") %>%
+    ggplot() +
+    aes(x = Sector, fill = Sector, colour = Sector) +
+    geom_bar() +
+    scale_fill_hue(direction = 1) +
+    scale_color_hue(direction = 1) +
+    labs(x = "Companies", y = "Count", caption = "Filtered on the date in order to get a better repserentation of the caps last year") +
+    theme_minimal()
+print(g7)
+```
+
+
+
+
+# Look at cumulative returns
+
+```{r}
+#T40.xts <-  T40 %>tbl2xts::xts_tbl()
+
+
+# transformation: reshape to plot
+
+xts.T40 <-
+    T40 %>%
+    tbl_xts()
+colnames(xts.T40)
+```
+
+```{r}
+window_size = 120
+
+g8 <- 
+chart.RollingPerformance(
+    R = xts.T40[, c("J200return", "J400return")],
+    FUN = "sd",
+    width = window_size,
+    main = "Rolling 120 day Standard Deviation",
+    legend.loc = "topleft"
+)
+
+print(g8)
+```
+
+```{r}
+# Calculate rolling returns
+T40 <- T40  %>%
+    # Set NA Rets to zero to make cumprod work:
+    mutate(J200return = coalesce(J200return, 0)) %>%
+    mutate(Cum_Ret200= cumprod(1 + J200return)) %>%
+    mutate(J400return = coalesce(J400return, 0)) %>%
+    mutate(Cum_Ret400 = cumprod(1 + J400return))
+```
+
+
+
+```{r}
+g9 <- ggplot(T40) +
+ aes(x = date, y = Cum_Ret200, colour = Sector) +
+ geom_line(size = 0.5) +
+ scale_color_hue(direction = 1) +
+ labs(x = "Time(daily)", y = "Cumulative returns", caption = "Industrials had good cumulative returns in J200.", 
+ color = "Sector") +
+ theme_minimal()
+
+print(g9)
+```
+```{r}
+g10 <- ggplot(T40) +
+ aes(x = date, y = Cum_Ret400, colour = Sector) +
+ geom_line(size = 0.5) +
+ scale_color_hue(direction = 1) +
+ labs(x = "Time(daily)", y = "Cumulative returns", caption = "Industrials had good cumulative returns in J400.", 
+ color = "Sector") +
+ theme_minimal()
+print(g10)
+```
+
+```{r}
+
+#Cumret for J200 and J400 by Sector
+# First: calculate ordinary returns
+library(lubridate)
+
+#------------------ 
+# Step one: gather to make tidy:
+
+#------------------ 
+# Second: Calculate Cumulative Returns
+T40_ <-  T40 %>% 
+# for cumulative returns - we have to change NA to zero, else
+# an NA would break the chain....
+mutate(J200return = coalesce(J200return, 0)) %>% 
+# Any NA in Returns is changed to zero
+group_by(Sector) %>% 
+mutate(Cum_Ret200 = cumprod(1 + J200return)) %>% mutate(Cum_Ret400 = cumprod(1 + J400return))
+
+# Bonus: Figure for Naspers:
+g11 <- ggplot(T40) + 
+geom_line(aes(x = date, y = Cum_Ret200), color = "red") + 
+geom_line(aes(x = date, y = Cum_Ret400), color = "green")
+theme_bw() + labs(title = "J200 and J400 cumulative Return", y = "Growth of R1 invested in 2003.")
+
+print(g11)
+```
+
+#Question 3 
+
+
+Volatility comparison in understanding the concentration and commodity of returns with the Top 40 Indexes. Monthly volatility is stratified by computing the J200 index returns and comparing the return source concentrations for just times of high volatility.
+
+```{r}
+
+# Importing the data
+T40 <- read_rds("data/T40.rds")
+RebDays <- read_rds("data/Rebalance_days.rds")
+```
+
+
+Stratify returns during time of high volatility. 
+
+
+```{r}
+# Look at the structure of the missing data
+i1 <- naniar::vis_miss(T40,warn_large_data=FALSE)
+i1
+
+```
+Block structure of the missing data suggests that the data is missing not at random (MNAR) meaning that there is some reason that the data is missing. We observe this directly as the data is missing in particular columns. We have to be weary of when the weights `J200` and `J400` have missing data but also when the `Return` is missing.
+
+
+
+
+```{r}
+
+
+T40 <- T40 %>% group_by(date) %>%
+    # replace NA with zero for both Return and J200
+    mutate(Return = coalesce(Return, 0)) %>%
+    mutate(J200 = coalesce(J200, 0)) %>%
+    # Calculate J200return from weight * value
+    mutate(J200return = J200 * Return) %>%
+    # remove the J400, could have also just selected the necessary parts only
+    select(-J400)
+```
+
+
+```{r}
+T40 <-
+    
+    T40 %>% group_by(Tickers) %>%
+    mutate(Top = quantile(J200return, 0.99),
+           Bot = quantile(J200return, 0.01)) %>%
+    
+    mutate(Return = ifelse(J200return > Top, Top,
+                           ifelse(J200return < Bot, Bot, J200return))) %>%
+    ungroup() %>%  mutate(YearMonth = format(date, "%Y%B"))
+
+```
+
+
+```{r}
+# High volatile in the topquantile
+T40SD <- T40  %>%
+    mutate(YearMonth = format(date, "%Y%B")) %>%
+    group_by(YearMonth) %>% summarise(SD = sd(J200return) * sqrt(52)) %>%
+    mutate(TQ = quantile(SD, 0.8),
+           BQ = quantile(SD, 0.2))
+```
+
+
+```{r}
+hivolume <- T40SD %>%
+    filter(SD > TQ) %>%
+    pull(YearMonth)
+
+lowvolume <- T40SD %>%
+    filter(SD < BQ) %>%
+    pull(YearMonth)
+```
+
+```{r}
+# Create generic function to compare performance:
+
+Perf_comparisons <- function(Idxs, YMs, Alias) {
+    YMs <- hivolume
+    
+    Unconditional_SD <-
+        Idxs %>%
+        group_by(Tickers) %>%
+        mutate(Full_SD = sd(Return) * sqrt(252)) %>%
+        filter(YearMonth %in% YMs) %>%
+        summarise(SD = sd(Return) * sqrt(252),
+                  across(.cols = starts_with("Full"), .fns = max)) %>%
+        arrange(desc(SD)) %>% mutate(Period = Alias) %>%
+        group_by(Tickers) %>%
+        mutate(Ratio = SD / Full_SD)
+    
+    Unconditional_SD
+    
+}
+```
+
+
+```{r}
+#monthly high volatility tickers
+
+hi <- Perf_comparisons(T40, YMs = Hi_Vol, Alias = "hivolume")
+
+low <- Perf_comparisons(T40, YMs = Low_Vol, Alias = "lowvolume")
+
+```
+
+PCA Analysis:
+
+```{r}
+naniar::vis_miss(hi,warn_large_data=FALSE)
+```
+The missingness profile shows the block structure of the missingness is from the ratio. After printing it out we see that these are stocks that are not in our group.
+
+```{r}
+#Removing missingness  resulting from the ration
+
+hi <-na.omit(hi)
+
+```
+
+
+Now to center the J200returns mean
+```{r}
+T40_Centered <-
+    T40 %>% group_by(Tickers) %>% 
+    mutate(J200return_centered = J200return - mean(J200return)) %>%
+    ungroup()
+```
+
+
+Here we are only interested in Hi volatility periods as stratified above.
+
+```{r, warnings=FALSE}
+
+pacman::p_load(fEcofin)
+
+# create wide format 
+data_wide <- T40_Centered %>%
+    filter(T40_Centered$Tickers %in% hi$Tickers) %>%
+    mutate(Return = coalesce(Return, 0))  %>%
+    select(date, Tickers, J200return_centered) %>%
+    spread(Tickers,
+           J200return_centered) %>%
+    select(-date)
+
+
+# Checked that all stocks are in the index at some time 
+temp <- data_wide[, colSums(is.na(data_wide)) != nrow(data_wide)]
+
+# rebalancing cause stocks to move in and out of a portfolio
+# these are the missing values that we saw in the vismiss and
+# that we have to delete.
+data_wide <- temp %>%
+    mutate(across(everything(), replace_na, 0))
+
+
+# now the data is full which is necessary for us to perform 
+# principle component analysis
+
+print(vis_miss(data_wide))
+
+# perform PCA analysis
+PCA <- prcomp(data_wide)
+
+```
+PCA use the covariance matrix and requires a full matrix with no    `NaN` using this, and the knowledge that when a stock is weighted at zero in a portfolio's weighting, it also has zero returns for that portfolio so we can just replace the  `NaN` with zero.
+
+```{r}
+# Plot the skree plot
+i4 <- plot(PCA, type = "l")
+print(i4)
+```
+The elbow is seen in the PCA scree plot as intended. It would terminate at two, implying that the first and second eigenvalues and eigenvectors account for the bulk of variance.
+
+We can see this below that the majority of the proportion of variance is explained by the first and second PCA, under `PC1` and `PC2`. PCA is simply a dimension reduction of sorts, we want to see in lower dimensions, how can we explain majority of the variation, hence the norm is to cut off at the elbow where the proportion of variation explained starts to deminish. 
+
+```{r}
+i2 <- summary(PCA)
+print(i2)
+```
+
+```{r}
+    print(i2$importance)
+    print(0.467120000 + 0.237460000)
+```
+The first 2 components explain 0.70458 of the variation.
+
+#Question 4
+
+
+```{r, force = TRUE}
+# ============== Preamble to load packages ========================== #
+if(!require("devtools")){install_github("devtools")}
+library(devtools)
+
+# Install pacman to handle installations
+if(!require("trinker/pacman")){install_github("trinker/pacman")}
+
+# Install the required packages in elagant approach
+pacman::p_load(
+    "tidyverse",
+    "devtools",
+    "rugarch",
+    "forecast",
+    "tbl2xts",
+    "lubridate",
+    "PerformanceAnalytics",
+    "ggthemes",
+    "robustbase",
+    "tbl2xts",
+    "PerformanceAnalytics",
+    "ggplot2",
+    "tidyverse",
+    "fmxdat",
+    "extrafont",
+    "TTR",
+    "naniar",
+    "readr",
+    "dplyr",
+    "tidyr",
+    "MTS", 
+    "robustbase",
+    "rportfolios",
+    "zoo",
+    "dLagM"
+)
+```
+
+
+```{r}
+
+#Import the data
+cncy <- read_rds("data/currencies.rds") 
+cncy_Carry <- read_rds("data/cncy_Carry.rds") 
+cncy_value <- read_rds("data/cncy_value.rds")
+cncyIV <- read_rds("data/cncyIV.rds")
+bbdxy <- read_rds("data/bbdxy.rds")
+```
+
+
+```{r}
+
+cncy %>%
+    # take last 20 years 
+    filter(date >= "2001-10-31" & date <= "2021-10-31") %>%
+    # format for BRICS countries 
+    filter(
+        Name %in% c(
+            "Brazil_Cncy",
+            "Russia_Cncy",
+            "SouthAfrica_Cncy",
+            "China_Cncy",
+            "India_Cncy"
+        )
+    ) %>%
+    # plot 
+    ggplot() +
+    aes(x = date, y = Price, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Time (days)",
+        y = "Price",
+        title = "Time plot of BRICS currencies",
+        caption = "BRICS currency",
+        color = "BRICS"
+    ) +
+    theme_bw() +
+    theme(legend.position = "bottom")
+```
+
+```{r}
+cncy %>%
+    # filter last 20 years
+    filter(date >= "2001-10-31" & date <= "2021-10-31") %>%
+    # BRICS
+    filter(
+        Name %in% c(
+            "Brazil_Cncy",
+            "Russia_Cncy",
+            "SouthAfrica_Cncy",
+            "China_Cncy",
+            "India_Cncy"
+        )
+    ) %>% group_by(Name) %>% summary()
+```
+
+```{r}
+
+
+cncyIV %>%
+    filter(date >= "2000-02-19" & date <= "2021-10-29") %>%
+    filter(
+        Name %in% c(
+            "Brazil_IV",
+            "China_IV",
+            "EU_IV",
+            "India_IV",
+            "SouthAfrica_IV",
+            "Russia_IV"
+        )
+    ) %>%
+    ggplot() +
+    aes(x = date, y = Price, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Time",
+        y = "Volatility index",
+        subtitle = "Volatility comparson",
+        caption = "BRICS and EU volatility ",
+        color = "Country"
+    ) +
+    theme_bw()
+
+```
+```{r}
+temp <- cncyIV %>%
+ filter(date >= "2000-02-19" & date <= "2021-10-29") %>%
+ filter(Name %in% c("Brazil_IV", "China_IV", 
+"EU_IV", "India_IV", "SouthAfrica_IV", "Russia_IV")) 
+
+ggplot(temp) +
+  aes(x = Name, y = Price, fill = Name) +
+  geom_boxplot(shape = "circle") +
+  scale_fill_hue(direction = 1) +
+  labs(
+    x = "Country volatility",
+    y = "Volatility index",
+    caption = "Volatility over the past 20 years have been high in SA",
+    fill = "Country"
+  ) +
+  theme_bw()
+```
+The diagram above with the statement that South Africa has a higher volatility over the past 20 years. This is evident as the volatility index (VI) has a distribution relatively higher than most BRICS countries, except Brazil perhaps. We also see that many periods had outliers, where the VI  has spiked upwards.
+
+
+
+```{r}
+# G10
+glimpse(cncy_Carry)
+```
+
+
+```{r}
+
+# subset south african currency
+ZAR <-
+    cncy %>% 
+    filter(Name == "SouthAfrica_Cncy") %>%
+    select(date, Price)
+
+# rename columns in order to plot
+colnames(ZAR)[2] <- "SouthAfrica_Cncy"
+colnames(cncy_Carry)[3] <- "DBHVG10U"
+
+# inner join by date
+temp <- inner_join(cncy_Carry, ZAR, by = "date")
+
+
+# Plot a currency comparison of the G10 and ZA
+p1 <-
+    ggplot(data = temp, aes(x = date)) +
+    geom_line(aes(y = DBHVG10U, colour = "DBHVG10U")) +
+    geom_line(aes(y = SouthAfrica_Cncy, colour = "SouthAfrica_Cncy")) +
+    scale_colour_manual(
+        "",
+        breaks = c("SouthAfrica_Cncy", "DBHVG10U"),
+        values = c("SouthAfrica_Cncy" = "green", "DBHVG10U" =
+                       "red")
+    ) +
+    xlab(" ") +
+    scale_y_continuous("Currency ") +
+    labs(title = "Currency return comparison: G10 vs ZA",
+         subtitle = "Currency G10 vs ZA normal scale") +
+  theme_bw()
+
+p1
+
+```
+It is difficult to compare the SA and the G10 in `DBHVG10U` and South African currencies as they are on different scales. We can try to scale both measures to ensure that a fair comparison of their synchrony takes place.
+
+
+```{r}
+
+# 
+temp <- temp %>%
+    select(-Name)
+
+p2 <-
+ggplot(data = temp, aes(x = date)) +
+  geom_line(aes(y = scale(DBHVG10U), colour = "DBHVG10U")) +
+  geom_line(aes(y = scale(SouthAfrica_Cncy), colour = "SouthAfrica_Cncy")) +
+  scale_colour_manual("", 
+                      breaks = c("SouthAfrica_Cncy", "DBHVG10U"),
+                      values = c("SouthAfrica_Cncy"="orange", "DBHVG10U"="blue")) +
+  xlab("Time") +
+  scale_y_continuous("Scaled currency") + 
+  labs(title="Currency return comparison: G10 vs ZA",
+       subtitle = "Scaled SouthAfrica_Cncy and DBHVG10U",
+       caption = "Possible inverse relationship present.") +
+  theme_bw()
+
+p2
+
+```
+
+We observe from the scaled currencies a possible inverse relationship. In order to truly understand the synchrony of the currencies, we could use the correlation. This is the standard approach to consider the synchrony of two variables, but since this is also a time series problem, the time dimension is a factor in determining the correct approach. A rolling window has the added benefit of allowing you to include the time dimension but without eliminating the bias-variance trade-off in the window size. For more on this see work by Tsay in his 2013 book on multivariate time series.
+
+```{r, warning=FALSE}
+
+if(!require("dLagM")){install_github("dLagM")}
+
+temp <- temp %>% select(date, DBHVG10U, SouthAfrica_Cncy)
+
+prod.ts <- ts(temp$DBHVG10U, start = 2000)
+CO2.ts <- ts(temp$SouthAfrica_Cncy, start = 2000)
+rolCorPlot(
+    x = prod.ts,
+    y = CO2.ts ,
+    width = c(20),
+    level = 0.95
+)
+```
+An analysis of the rolling correlation with a window showing the confidence interval, considering a 20 day window show that the correlation is generally slightly negative. Further supporting the argument that there is an inverse relationship, i.e. if ZA goes up, G10 goes down in general.
+
+
+#Question 5
+
+# Import the data
+```{r}
+msci <- read_rds("data/msci.rds")
+bonds <- read_rds("data/bonds_10y.rds")
+comms <- read_rds("data/comms.rds")
+```
+
+
+#How does the data look like?
+
+```{r}
+str(msci)
+class(msci)
+head(msci)
+colnames(msci)
+
+uniquemsci <- unique(msci$Name) 
+uniquemsci
+
+uniquebonds <- unique(bonds$Name) 
+uniquebonds
+
+uniquecomms <- unique(comms$Name) 
+uniquecomms
+
+```
+
+
+To show returns that are converging - we conduct the MSCI, total bond and commodity return profiles. 
+
+```{r, include=FALSE}
+
+a1 <-  ggplot(msci) +
+    aes(x = date, y = Price, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Returns",
+        title = "MCSI Index Plot",
+        caption = "MCSI indexes plot of returns"
+    ) +
+    theme_bw()
+```
+```{r}
+a1
+```
+
+
+The plot shows that there are a variety of indexes in the dataset. It may be necessary to only select those variables that are country or region specific to create a reasonable comparisons between returns across asset classes.
+
+```{r, include=FALSE}
+
+a2 <- 
+ggplot(comms) +
+    aes(x = date, y = Price, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Return",
+        title = "Commodities Returns",
+        subtitle = "Showing commodity prices"
+    ) +
+    theme_bw()
+```
+
+```{r}
+print(a2)
+```
+ 
+
+```{r, include=FALSE}
+
+a3 <- 
+bonds_10y %>% filter(Name == "US_10Yr") %>% ggplot() +
+    aes(x = date, y = Bond_10Yr, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Yields",
+        title = "10 Year bond Yields",
+        subtitle = "Showing all the 10 Year",
+        caption = "Showing all the data in the data set"
+    ) +
+    theme_bw()
+```
+```{r}
+print(a3)
+```
+
+
+```{r, include=FALSE}
+# China msci return 
+
+USreturn <-
+    msci %>% filter(Name == "MSCI_USA") %>% arrange(date) %>% mutate(US_Msci_return = Price /
+                                                                         lag(Price) - 1)
+
+
+a4 <-
+    USreturn %>% ggplot() +
+    aes(x = date, y = US_Msci_return, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Return",
+        title = "MSCI USA Return",
+        subtitle = "Showing all the 10 Year",
+        caption = "Showing all the data in the data set"
+    ) +
+    theme_bw()
+```
+
+```{r}
+print(a4)
+```
+
+
+
+```{r, include=FALSE}
+#bcom returns
+
+Gold_ret <-
+    comms %>% filter(Name == "Gold") %>% arrange(date) %>% mutate(gold_ret = Price /
+                                                                      lag(Price) - 1)
+
+
+Gold_ret  %>% ggplot() +
+    aes(x = date, y = gold_ret, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Price",
+        title = "Gold Returns",
+        subtitle = "All the 10 Year"
+    ) +
+    theme_bw()
+```
+
+
+# Question 6
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse)
+```
+
+
+```{r}
+MAA <- read_rds("data/MAA.rds")
+msci <- read_rds("data/msci.rds") %>%
+    filter(Name %in% c("MSCI_ACWI", "MSCI_USA", "MSCI_RE", "MSCI_Jap"))
+```
+
+
+```{r}
+
+ggplot(msci) +
+    aes(x = date, y = Price, colour = Name) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Prices",
+        title = "MSCI indexes",
+        subtitle = "MSCI TR series", 
+        colour = "MSCI indexes"
+    ) +
+    theme_bw()
+```
+
+
+```{r}
+ggplot(MAA) +
+    aes(x = date, y = Price, colour = Ticker) +
+    geom_line(size = 0.5) +
+    scale_color_hue(direction = 1) +
+    labs(
+        x = "Year",
+        y = "Price",
+        title = "Global Indexes",
+        caption = "Plot of Global Indexes", colour = "Global index"
+    ) +
+    theme_bw()
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

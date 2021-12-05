@@ -1,0 +1,314 @@
+---
+title: "Paged HTML Document"
+author: "Deborah Kapenda"
+date: "November 2021"
+# date: "`r Sys.Date()`"
+bibliography: Tex/ref.bib       # Do not edit: Keep this naming convention and location.
+output:
+  pagedown::html_paged:
+    # template: wp_paged.html
+    # css: ['wp.css', 'wp-fonts.css', 'wp-page.css']
+    css: ["Template/default-fonts-Texevier.css", "Template/default-page-Texevier.css", "Template/default-Texevier.css"]
+    csl: Template/harvard-stellenbosch-university.csl # referencing format used.
+    template: ["Template/paged-Texevier.html"]
+
+    toc: true
+    # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
+    self_contained: TRUE
+abstract: |
+    This is an abstract. Much can be written here. Uncomment this line to go without an abstract.
+    Abstracts have no spaces, but can have bullets.
+
+    Bullets can be created as follows
+
+    + You can add bullets, but do not add colons please.
+
+    + Line breaks are also not permitted.
+
+---
+
+
+```{r, force = TRUE}
+# ============== Preamble to load packages ========================== #
+if(!require("devtools")){install_github("devtools")}
+library(devtools)
+
+# Install pacman to handle installations
+if(!require("trinker/pacman")){install_github("trinker/pacman")}
+
+# Install the required packages in elagant approach
+pacman::p_load(
+    "tidyverse",
+    "devtools",
+    "rugarch",
+    "forecast",
+    "tbl2xts",
+    "lubridate",
+    "PerformanceAnalytics",
+    "ggthemes",
+    "robustbase",
+    "tbl2xts",
+    "PerformanceAnalytics",
+    "ggplot2",
+    "tidyverse",
+    "fmxdat",
+    "extrafont",
+    "TTR",
+    "naniar",
+    "readr",
+    "dplyr",
+    "tidyr"
+)
+```
+Load the data 
+```{r}
+T40 <- read_rds("data/T40.rds")
+RebDays <- read_rds("data/Rebalance_days.rds")
+```
+
+Glimpse of the data 
+```{r}
+#Glimpse of the data 
+print(dim(T40))
+print(dim(RebDays))
+```
+
+
+```{r}
+# Missing data is present in the dataset
+g1 <- vis_miss(T40,warn_large_data=FALSE)
+g1
+```
+
+
+```{r}
+glimpse(T40)
+```
+```{r}
+glimpse(RebDays)
+```
+
+
+```{r}
+# Look at unique stocks per day
+temp <- T40 %>% group_by(date) %>% tally()
+unique(temp$n)
+```
+
+```{r}
+# test for J200
+temp <- T40 %>% group_by(date) %>% summarise(sumval = sum(J200))
+unique(temp$sumval)
+```
+```{r}
+# test for J400
+temp <- T40 %>% group_by(date) %>% summarise(sumval = sum(J400))
+unique(temp$sumval)
+
+```
+
+We know that the return of the portfolio can be calculated as
+$$
+r_{\text{portfilio}}(t) = \sum_{i} w_{i}(t) \times r_{i}(t),
+$$
+where $w_{i}(t)$ is the weight of stock $i$ and $r_{i}(t)$ is the return of stock $i$ for all $i$ stocks.
+```{r, warning=FALSE}
+T40<- T40 %>% group_by(date) %>% 
+              mutate(J200return = J200 * Return,
+              J400return = J400 * Return
+                                  )
+
+# possibly log returns since all are greater than 0
+sum(T40$J400return < 0)
+sum(T40$J200return < 0)
+```
+
+```{r, warning=FALSE}
+
+# Can't have a negative weight in a portfolio
+g2 <- T40 %>%
+ ggplot() +
+ aes(x = J400) +
+ geom_histogram(bins = 100L, fill = "grey") +
+ labs(x = "J400 returns", 
+ y = "Freq", title = "Histogram of J400 weigths", subtitle = "J400 weights follow log-normal distribution as expected")  +
+ theme_minimal()
+
+print(g2)
+```
+
+
+```{r, warning=FALSE}
+g3 <- T40 %>%
+ ggplot() +
+ aes(x = J400return) +
+ geom_histogram(bins = 200L, fill = "grey") +
+ labs(x = "J400 returns", 
+ y = "Freq", title = "Histogram of J400 returns", subtitle = "J400 returns follow log-normal distribution") +
+ theme_minimal()
+print(g3)
+```
+
+
+```{r, warning=FALSE}
+
+T40 %>%
+ filter(Return >= -0.74 & Return <= 0.14) %>%
+ ggplot() +
+ aes(x = J200) +
+ geom_histogram(bins = 100L, fill = "blue") +
+ labs(x = "J200 returns", 
+ y = "Freq", title = "Histogram of J200 returns", subtitle = "J200 returns follow log-normal distribution") +
+ theme_minimal()
+```
+```{r, warning=FALSE}
+
+g4 <- T40 %>%
+ ggplot() +
+ aes(x = J200return) +
+ geom_histogram(bins = 100L, fill = "blue") +
+ labs(x = "J200 returns", 
+ y = "Freq", title = "Histogram of J200 returns", subtitle = "J200 returns follow normal distribution") +
+ theme_minimal()
+g4
+```
+
+
+
+```{r}
+g5 <- T40 %>%
+ filter(date >= "2021-05-23" & date <= "2021-10-29") %>%
+ ggplot() +
+  aes(x = date, y = Return, colour = Sector) +
+  geom_line(size = 0.5) +
+  scale_color_hue(direction = 1) +
+  theme_minimal()
+
+print(g5)
+```
+
+```{r}
+library(ggplot2)
+
+g6 <- ggplot(T40) +
+ aes(x = date, y = Return, colour = Sector) +
+ geom_line(size = 0.5) +
+ scale_color_hue(direction = 1) +
+ labs(x = "Time", y = "Return", subtitle = "Returns of the T40 by sector", caption = "The resource sector exhibits significant fluctuations") +
+ theme_minimal() +
+ facet_wrap(vars(Sector))
+print(g6)
+```
+
+
+```{r}
+g7 <- 
+T40 %>%
+ filter(date >= "2020-06-11" & date <= "2021-10-29") %>%
+ ggplot() +
+ aes(x = Sector, fill = Sector, colour = Sector) +
+ geom_bar() +
+ scale_fill_hue(direction = 1) +
+ scale_color_hue(direction = 1) +
+ labs(x = "Companies", y = "Count", caption = "Filtered on the date in order to get a better repserentation of the caps last year") +
+ theme_minimal()
+print(g7)
+```
+
+
+
+
+# Look at cumulative returns
+
+```{r}
+#T40.xts <-  T40 %>tbl2xts::xts_tbl()
+
+
+# transformation: reshape to plot
+
+xts.T40 <-
+    T40 %>%
+    tbl_xts()
+colnames(xts.T40)
+```
+
+```{r}
+window_size = 120
+
+g8 <- 
+chart.RollingPerformance(
+    R = xts.T40[, c("J200return", "J400return")],
+    FUN = "sd",
+    width = window_size,
+    main = "Rolling 120 day Standard Deviation",
+    legend.loc = "topleft"
+)
+
+print(g8)
+```
+
+```{r}
+# Calculate rolling returns
+T40 <- T40  %>%
+    # Set NA Rets to zero to make cumprod work:
+    mutate(J200return = coalesce(J200return, 0)) %>%
+    mutate(Cum_Ret200= cumprod(1 + J200return)) %>%
+    mutate(J400return = coalesce(J400return, 0)) %>%
+    mutate(Cum_Ret400 = cumprod(1 + J400return))
+```
+
+
+
+```{r}
+g9 <- ggplot(T40) +
+ aes(x = date, y = Cum_Ret200, colour = Sector) +
+ geom_line(size = 0.5) +
+ scale_color_hue(direction = 1) +
+ labs(x = "Time(daily)", y = "Cumulative returns", caption = "Industrials had good cumulative returns in J200.", 
+ color = "Sector") +
+ theme_minimal()
+
+print(g9)
+```
+```{r}
+g10 <- ggplot(T40) +
+ aes(x = date, y = Cum_Ret400, colour = Sector) +
+ geom_line(size = 0.5) +
+ scale_color_hue(direction = 1) +
+ labs(x = "Time(daily)", y = "Cumulative returns", caption = "Industrials had good cumulative returns in J400.", 
+ color = "Sector") +
+ theme_minimal()
+print(g10)
+```
+
+```{r}
+
+#Cumret for J200 and J400 by Sector
+# First: calculate ordinary returns
+library(lubridate)
+
+#------------------ 
+# Step one: gather to make tidy:
+
+#------------------ 
+# Second: Calculate Cumulative Returns
+T40_ <-  T40 %>% 
+# for cumulative returns - we have to change NA to zero, else
+# an NA would break the chain....
+mutate(J200return = coalesce(J200return, 0)) %>% 
+# Any NA in Returns is changed to zero
+group_by(Sector) %>% 
+mutate(Cum_Ret200 = cumprod(1 + J200return)) %>% mutate(Cum_Ret400 = cumprod(1 + J400return))
+
+# Bonus: Figure for Naspers:
+g11 <- ggplot(T40) + 
+geom_line(aes(x = date, y = Cum_Ret200), color = "red") + 
+geom_line(aes(x = date, y = Cum_Ret400), color = "green")
+theme_bw() + labs(title = "J200 and J400 cumulative Return", y = "Growth of R1 invested in 2003.")
+
+print(g11)
+```
+
+
+
+
